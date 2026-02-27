@@ -9,12 +9,6 @@ set +a
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
 # Configuration
 RELEASE_NAME="restaurant-backend"
 NAMESPACE="restaurant"
@@ -26,7 +20,7 @@ check_env_var() {
     local var_value=${!var_name}
     
     if [ -z "$var_value" ]; then
-        echo -e "${RED}❌ Error: $var_name is not set${NC}"
+        echo -e "Error: $var_name is not set"
         return 1
     fi
     return 0
@@ -81,7 +75,7 @@ if [ "$COMMAND" = "-h" ] || [ "$COMMAND" = "--help" ] || [ "$COMMAND" = "help" ]
 fi
 
 # Validate required environment variables
-echo -e "${YELLOW}🔍 Validating environment variables...${NC}"
+echo -e "Validating environment variables..."
 
 check_env_var "DB_USER" || exit 1
 check_env_var "DB_HOST" || exit 1
@@ -89,7 +83,7 @@ check_env_var "DB_PASSWORD" || exit 1
 check_env_var "DB_NAME" || exit 1
 check_env_var "DB_PORT" || exit 1
 
-echo -e "${GREEN}✅ All required variables are set${NC}"
+echo -e "$All required variables are set"
 
 # Set optional variables with defaults
 IMAGE_REPO=${IMAGE_REPO:-"phbao/restaurant-backend"}
@@ -111,6 +105,38 @@ done
 
 # Make sure namespace exists
 kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+# -----------------------------------------------
+# Fix HPA Metrics Issue (Enable Kubelet Read-Only Port)
+# -----------------------------------------------
+echo -e "Checking HPA metrics configuration..."
+
+# Add read-only port to kubelet config if not present
+if ! grep -q "readOnlyPort" /var/lib/kubelet/config.yaml; then
+    echo -e "Adding kubelet read-only port..."
+    echo "" | sudo tee -a /var/lib/kubelet/config.yaml > /dev/null
+    echo "# Enable read-only Kubelet port for metrics monitoring" | sudo tee -a /var/lib/kubelet/config.yaml > /dev/null
+    echo "readOnlyPort: 10255" | sudo tee -a /var/lib/kubelet/config.yaml > /dev/null
+    
+    echo -e "Restarting kubelet..."
+    sudo systemctl restart kubelet
+    sleep 5
+fi
+
+# Patch metrics-server if needed
+if kubectl get deployment metrics-server -n kube-system &>/dev/null; then
+    echo -e "$Patching metrics-server for HPA support..."
+    kubectl patch deployment metrics-server -n kube-system \
+      -p '{"spec":{"template":{"spec":{"containers":[{"name":"metrics-server","args":["--cert-dir=/tmp","--secure-port=10250","--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname","--kubelet-use-node-status-port","--metric-resolution=15s","--kubelet-insecure-tls"]}]}}}' \
+      2>/dev/null || true
+    
+    # Wait for metrics-server to be ready
+    echo -e "Waiting for metrics-server to be ready..."
+    kubectl rollout status deployment/metrics-server -n kube-system --timeout=60s 2>/dev/null || true
+    sleep 10
+fi
+
+echo -e "HPA metrics configured"
 
 # Build helm command
 HELM_CMD="helm $COMMAND $RELEASE_NAME $CHART_PATH"
@@ -150,7 +176,7 @@ fi
 
 # Display what we're about to do
 echo ""
-echo -e "${YELLOW} Deployment Configuration:${NC}"
+echo -e "Deployment Configuration:"
 echo "  Release: $RELEASE_NAME"
 echo "  Chart: $CHART_PATH"
 echo "  Namespace: $NAMESPACE"
@@ -171,19 +197,23 @@ if [ "$COMMAND" != "dry-run" ]; then
 fi
 
 # Execute helm command
-echo -e "${YELLOW}🚀 Executing Helm command...${NC}"
+echo -e "Executing Helm command..."
 echo ""
 eval $HELM_CMD
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo -e "${GREEN} Deployment successful!${NC}"
+    echo -e "Deployment successful!"
     echo ""
     echo "Check deployment status:"
     echo "  kubectl get deployments -n $NAMESPACE"
     echo "  kubectl get pods -n $NAMESPACE"
     echo "  kubectl logs -n $NAMESPACE -l app=restaurant-backend"
+    echo ""
+    echo "Check HPA status:"
+    echo "  kubectl get hpa -n $NAMESPACE"
+    echo "  kubectl top pods -n $NAMESPACE"
 else
-    echo -e "${RED}❌ Deployment failed!${NC}"
+    echo -e "Deployment failed!"
     exit 1
 fi
