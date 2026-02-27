@@ -49,11 +49,11 @@ deploy.bat install
 
 ```bash
 # Set environment variables
-export DB_USER=postgres.iyhxwysdtwqcmmmpsial
-export DB_HOST=aws-1-ap-south-1.pooler.supabase.com
-export DB_PASSWORD="vfY#hEy*tn4_gGj"
-export DB_NAME=postgres
-export DB_PORT=6543
+export DB_USER=
+export DB_HOST=
+export DB_PASSWORD=
+export DB_NAME=
+export DB_PORT=
 
 # Install
 helm install restaurant-backend ./restaurant-backend \
