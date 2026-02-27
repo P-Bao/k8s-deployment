@@ -1,0 +1,39 @@
+# Backend configuration
+backend:
+  image:
+    repository: your-registry/restaurant-backend
+    tag: latest
+    pullPolicy: Always
+  replicas: 2
+  port: 5001
+  serviceType: NodePort
+  nodePort: 30501
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 15
+    targetCPUPercent: 40
+
+# Supabase configuration (using external managed service)
+# NOTE: These values MUST be provided via --set flags in helm install/upgrade
+# Example: helm install ... --set supabase.user=$DB_USER --set supabase.password=$DB_PASSWORD
+supabase:
+  user: ""  # Provide via --set supabase.user=$DB_USER
+  host: ""  # Provide via --set supabase.host=$DB_HOST
+  password: ""  # Provide via --set supabase.password=$DB_PASSWORD
+  database: ""  # Provide via --set supabase.database=$DB_NAME
+  port: ""  # Provide via --set supabase.port=$DB_PORT
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  host: api.restaurant.local
+  annotations: {}

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: restaurant-backend
+description: A Helm chart for Restaurant Management Backend
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+# Không dùng Bitnami dependency - PostgreSQL được deploy local

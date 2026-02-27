@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-postgres-pvc
+  labels:
+    {{- include "restaurant.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.postgresql.storage.size }}
+  {{- if .Values.postgresql.storage.storageClassName }}
+  storageClassName: {{ .Values.postgresql.storage.storageClassName }}
+  {{- end }}

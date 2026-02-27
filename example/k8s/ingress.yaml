@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  namespace: restaurant
+  annotations:
+    # For nginx ingress controller
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # For traefik (k3s default)
+    # traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: nginx  # Change to "traefik" for k3s
+  rules:
+    - host: api.restaurant.local  # TODO: Replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 5001
