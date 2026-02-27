@@ -31,6 +31,12 @@ supabase:
   database: ""  # Provide via --set supabase.database=$DB_NAME
   port: ""  # Provide via --set supabase.port=$DB_PORT
 
+# PostgreSQL database configuration
+postgresql:
+  image: postgres:15-alpine  # You can change this to your desired PostgreSQL image
+  port: 5432
+  user: postgres  # Default user, will be overridden by secrets
+
 # Ingress configuration
 ingress:
   enabled: true
