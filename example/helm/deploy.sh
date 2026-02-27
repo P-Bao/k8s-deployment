@@ -2,7 +2,10 @@
 
 # Helm Deployment Script with Environment Variables
 # This script deploys the backend using Helm with secrets passed via CLI
-# Secrets are NOT hardcoded in YAML files
+
+set -a
+source .env
+set +a
 
 set -e
 
@@ -89,7 +92,7 @@ check_env_var "DB_PORT" || exit 1
 echo -e "${GREEN}✅ All required variables are set${NC}"
 
 # Set optional variables with defaults
-IMAGE_REPO=${IMAGE_REPO:-"your-registry/restaurant-backend"}
+IMAGE_REPO=${IMAGE_REPO:-"phbao/restaurant-backend"}
 IMAGE_TAG=${IMAGE_TAG:-"latest"}
 REPLICAS=${REPLICAS:-"2"}
 
