@@ -1,0 +1,99 @@
+{{- if .Values.service.enabled }}
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ .Values.service.name }}
+  namespace: {{ .Values.global.namespace | default "default" }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.service.name }}
+    app.kubernetes.io/part-of: t2s-platform
+    {{- range $k, $v := .Values.service.labels }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+  annotations:
+    serving.kserve.io/deploymentMode: {{ .Values.service.deploymentMode | default "RawDeployment" | quote }}
+    {{- range $k, $v := .Values.service.annotations }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+spec:
+  predictor:
+    {{- $minReplicas := 1 }}
+    {{- if and .Values.service.autoscaling (hasKey .Values.service.autoscaling "minReplicas") }}
+    {{- $minReplicas = .Values.service.autoscaling.minReplicas }}
+    {{- end }}
+    minReplicas: {{ $minReplicas }}
+    {{- if .Values.service.priorityClassName }}
+    priorityClassName: {{ .Values.service.priorityClassName }}
+    {{- end }}
+    {{- if .Values.service.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.service.nodeSelector | nindent 6 }}
+    {{- end }}
+    {{- if .Values.service.tolerations }}
+    tolerations:
+      {{- toYaml .Values.service.tolerations | nindent 6 }}
+    {{- end }}
+    {{- if .Values.service.affinity }}
+    affinity:
+      {{- toYaml .Values.service.affinity | nindent 6 }}
+    {{- end }}
+    containers:
+      - name: {{ .Values.service.name }}
+        image: "{{ .Values.service.image.repository }}:{{ .Values.service.image.tag }}"
+        imagePullPolicy: {{ .Values.service.image.pullPolicy | default "IfNotPresent" }}
+        {{- if .Values.service.command }}
+        command:
+          {{- toYaml .Values.service.command | nindent 10 }}
+        {{- end }}
+        {{- if .Values.service.args }}
+        args:
+          {{- toYaml .Values.service.args | nindent 10 }}
+        {{- end }}
+        ports:
+          - containerPort: {{ .Values.service.port }}
+            name: http1
+        env:
+          - name: KSERVE_DEFAULT_MODEL_NAMESPACE
+            value: {{ .Values.global.namespace | default "default" | quote }}
+          {{- range .Values.service.env }}
+          - name: {{ .name }}
+            value: {{ .value | quote }}
+          {{- end }}
+        envFrom:
+          - secretRef:
+              name: t2s-secrets
+              optional: true
+        resources:
+          requests:
+            {{- if .Values.service.resources.requests.cpu }}
+            cpu: {{ .Values.service.resources.requests.cpu | quote }}
+            {{- end }}
+            {{- if .Values.service.resources.requests.memory }}
+            memory: {{ .Values.service.resources.requests.memory | quote }}
+            {{- end }}
+            {{- if .Values.service.resources.gpu.enabled }}
+            {{ .Values.service.resources.gpu.resourceName | default .Values.global.gpu.resourceName }}: {{ .Values.service.resources.gpu.count | default 1 }}
+            {{- end }}
+          limits:
+            {{- if .Values.service.resources.limits.cpu }}
+            cpu: {{ .Values.service.resources.limits.cpu | quote }}
+            {{- end }}
+            {{- if .Values.service.resources.limits.memory }}
+            memory: {{ .Values.service.resources.limits.memory | quote }}
+            {{- end }}
+            {{- if .Values.service.resources.gpu.enabled }}
+            {{ .Values.service.resources.gpu.resourceName | default .Values.global.gpu.resourceName }}: {{ .Values.service.resources.gpu.count | default 1 }}
+            {{- end }}
+        {{- if or .Values.service.pvc.enabled .Values.service.pvc.create }}
+        volumeMounts:
+          - name: output-pvc
+            mountPath: {{ .Values.service.pvc.mountPath }}
+        {{- end }}
+    {{- if or .Values.service.pvc.enabled .Values.service.pvc.create }}
+    volumes:
+      - name: output-pvc
+        persistentVolumeClaim:
+          claimName: {{ .Values.service.pvc.name }}
+    {{- end }}
+{{- end }}
+

@@ -1,0 +1,134 @@
+# Global defaults applied across services. Override in values/<service>.yaml.
+global:
+  namespace: t2s-system
+  imagePullPolicy: IfNotPresent
+  gpu:
+    resourceName: nvidia.com/gpu
+    maxSharedSlots: 4  # RTX 5090 time-slicing slots; prevents over-scaling
+
+service:
+  enabled: true
+  name: "t2s"
+  displayName: "Text-to-Speech"
+  image:
+    repository: "local/t2s"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  port: 8080
+  command: []
+  args: []
+  env: []
+  annotations: {}
+  labels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  predictor:
+    protocolVersion: v2
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+    gpu:
+      enabled: false
+      count: 0
+      resourceName: "nvidia.com/gpu"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 2
+    cpu:
+      enabled: true
+      targetUtilization: 70
+    memory:
+      enabled: true
+      targetUtilization: 80
+    gpu:
+      enabled: false
+      metricName: gpu_utilization
+      targetAverageValue: "70"
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 60
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 50
+            periodSeconds: 60
+  pvc:
+    enabled: false
+    create: false
+    name: ""
+    storageClassName: ""
+    size: 20Gi
+    mountPath: /data/audios/output
+    accessModes: ["ReadWriteMany"]
+  probes:
+    readiness:
+      enabled: false
+      path: /health/ready
+      port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    liveness:
+      enabled: false
+      path: /health/live
+      port: 8080
+      initialDelaySeconds: 30
+      periodSeconds: 30
+
+# Gateway and pipeline router deployment
+
+gateway:
+  enabled: false
+  name: t2s-gateway
+  image:
+    repository: "local/t2s-gateway"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  port: 8080
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: false
+    className: "nginx"
+    hosts: []
+    tls: []
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 2
+    cpu:
+      enabled: true
+      targetUtilization: 70
+    memory:
+      enabled: false
+      targetUtilization: 80
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  env:
+    namespace: t2s-system
+    timeoutSeconds: 120
+    # Default references for all endpoints
+    NORM_VINORM_URL: "http://norm-vinorm-predictor.t2s-system.svc.cluster.local"
+    NORM_QWEN_URL: "http://norm-qwen-predictor.t2s-system.svc.cluster.local"
+    NORM_OPENAI_URL: "http://norm-openai-predictor.t2s-system.svc.cluster.local"
+    NORM_LLM_URL: "http://norm-llm-predictor.t2s-system.svc.cluster.local"
+    S2T_PHOWHISPER_URL: "http://s2t-phowhisper-predictor.t2s-system.svc.cluster.local"
+    T2E_EMOTION_URL: "http://t2e-bartpho-predictor.t2s-system.svc.cluster.local"
+    INDEXTTS_URL: "http://tts-indextts2-predictor.t2s-system.svc.cluster.local"
+    ZIPVOICE_URL: "http://tts-zipvoice-predictor.t2s-system.svc.cluster.local"

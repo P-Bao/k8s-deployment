@@ -1,0 +1,142 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Values.global.namespace | default "default" }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.gateway.name }}
+    app.kubernetes.io/part-of: t2s-platform
+spec:
+  replicas: {{ .Values.gateway.autoscaling.minReplicas | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.gateway.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.gateway.name }}
+        app.kubernetes.io/part-of: t2s-platform
+    spec:
+      containers:
+        - name: gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.gateway.port }}
+              name: http
+          env:
+            {{- range $key, $value := .Values.gateway.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: t2s-secrets
+                optional: true
+          resources:
+            requests:
+              cpu: {{ .Values.gateway.resources.requests.cpu | quote }}
+              memory: {{ .Values.gateway.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.gateway.resources.limits.cpu | quote }}
+              memory: {{ .Values.gateway.resources.limits.memory | quote }}
+        {{- if or .Values.gateway.pvc.enabled .Values.gateway.pvc.create }}
+          volumeMounts:
+            - name: output-pvc
+              mountPath: {{ .Values.gateway.pvc.mountPath }}
+        {{- end }}
+    {{- if or .Values.gateway.pvc.enabled .Values.gateway.pvc.create }}
+      volumes:
+        - name: output-pvc
+          persistentVolumeClaim:
+            claimName: {{ .Values.gateway.pvc.name }}
+    {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Values.global.namespace | default "default" }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.gateway.name }}
+    app.kubernetes.io/part-of: t2s-platform
+spec:
+  type: {{ .Values.gateway.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.gateway.service.port }}
+      targetPort: {{ .Values.gateway.port }}
+      {{- if and (eq .Values.gateway.service.type "NodePort") .Values.gateway.service.nodePort }}
+      nodePort: {{ .Values.gateway.service.nodePort }}
+      {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ .Values.gateway.name }}
+{{- if .Values.gateway.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Values.global.namespace | default "default" }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.gateway.ingress.className | quote }}
+{{- if .Values.gateway.ingress.annotations }}
+    {{- toYaml .Values.gateway.ingress.annotations | nindent 4 }}
+{{- end }}
+spec:
+  ingressClassName: {{ .Values.gateway.ingress.className | quote }}
+  rules:
+    {{- range .Values.gateway.ingress.hosts }}
+    - host: {{ .host }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $.Values.gateway.name }}
+                port:
+                  number: {{ $.Values.gateway.service.port }}
+          {{- end }}
+    {{- end }}
+  tls:
+    {{- toYaml .Values.gateway.ingress.tls | nindent 4 }}
+{{- end }}
+{{- if .Values.gateway.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Values.global.namespace | default "default" }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.gateway.name }}
+    app.kubernetes.io/part-of: t2s-platform
+spec:
+  minReplicas: {{ max 1 (.Values.gateway.autoscaling.minReplicas | default 1) }}
+  maxReplicas: {{ .Values.gateway.autoscaling.maxReplicas | default 2 }}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.gateway.name }}
+  metrics:
+    {{- if and .Values.gateway.autoscaling.cpu.enabled .Values.gateway.autoscaling.cpu.targetUtilization }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.gateway.autoscaling.cpu.targetUtilization }}
+    {{- end }}
+    {{- if and .Values.gateway.autoscaling.memory.enabled .Values.gateway.autoscaling.memory.targetUtilization }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.gateway.autoscaling.memory.targetUtilization }}
+    {{- end }}
+{{- end }}
+{{- end }}

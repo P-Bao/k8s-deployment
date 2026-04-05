@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kserve-stack
+description: Reusable KServe standard-mode bundle for S2T, Normalization, T2E, T2S, and the routing gateway.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

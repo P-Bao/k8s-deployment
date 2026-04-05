@@ -1,0 +1,44 @@
+global:
+  namespace: t2s-system
+
+service:
+  enabled: true
+  name: tts-indextts2
+  displayName: IndexTTS2 TTS
+  image:
+    repository: t2sv3-t2s-indextts2
+    tag: latest
+    pullPolicy: IfNotPresent
+  port: 8080
+  env:
+    - name: SERVICE_NAME
+      value: tts-indextts2
+  resources:
+    requests:
+      cpu: "2"
+      memory: "8Gi"
+    limits:
+      cpu: "6"
+      memory: "16Gi"
+    gpu:
+      enabled: true
+      count: 3
+      resourceName: nvidia.com/gpu
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 1
+    gpu:
+      enabled: true
+      metricName: gpu_utilization
+      targetAverageValue: "70"
+  pvc:
+    enabled: true
+    create: true
+    name: t2s-audio-pvc
+    storageClassName: "manual"
+    hostPath: "/home/iec/disk2/AnhLM027/Dev/T2S/T2S_V3/data"
+    size: 200Gi
+    mountPath: /data
+    accessModes:
+      - ReadWriteMany

@@ -1,0 +1,36 @@
+{{- if and .Values.service.enabled .Values.service.pvc.create }}
+{{- if .Values.service.pvc.hostPath }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.service.pvc.name }}-pv
+spec:
+  capacity:
+    storage: {{ .Values.service.pvc.size }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.service.pvc.storageClassName | default "manual" }}
+  hostPath:
+    path: {{ .Values.service.pvc.hostPath }}
+    type: DirectoryOrCreate
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.service.pvc.name }}
+  namespace: {{ .Values.global.namespace | default "default" }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.service.pvc.size }}
+  {{- if .Values.service.pvc.hostPath }}
+  storageClassName: {{ .Values.service.pvc.storageClassName | default "manual" }}
+  volumeName: {{ .Values.service.pvc.name }}-pv
+  {{- else if .Values.service.pvc.storageClassName }}
+  storageClassName: {{ .Values.service.pvc.storageClassName }}
+  {{- end }}
+{{- end }}
